@@ -18,7 +18,7 @@ interface Session {
 interface SessionContextType {
   sessions: Session[];
   loading: boolean;
-  createSession: () => Promise<string>;
+  createSession: (sessionId?: string) => Promise<string>;
   deleteSession: (sessionId: string) => Promise<void>;
   reconnectSession: (sessionId: string) => Promise<void>;
   logoutSession: (sessionId: string) => Promise<void>;
@@ -64,10 +64,16 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     }
   };
 
-  const createSession = async (): Promise<string> => {
+  const createSession = async (sessionId?: string): Promise<string> => {
     try {
+      const body: any = {};
+      if (sessionId) {
+        body.sessionId = sessionId;
+      }
+      
       const response = await apiRequest('/api/sessions', {
         method: 'POST',
+        body: JSON.stringify(body),
       });
 
       if (!response.success) {

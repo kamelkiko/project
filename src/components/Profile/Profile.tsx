@@ -8,20 +8,28 @@ import {
   Calendar,
   Edit3,
   Save,
-  X
+  X,
+  Lock
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { validateForm, emailRegex } from '../../utils/validation';
+import FormField from '../UI/FormField';
 import { apiRequest } from '../../utils/api';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../UI/LoadingSpinner';
 
 const Profile: React.FC = () => {
   const { user, refreshUser } = useAuth();
+  const { t } = useLanguage();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     username: user?.username || '',
     email: user?.email || '',
+    currentPassword: '',
+    newPassword: '',
   });
 
   const planDetails = {
@@ -49,45 +57,73 @@ const Profile: React.FC = () => {
 
   const currentPlan = planDetails[user?.plan as keyof typeof planDetails] || planDetails.free;
 
+  const validationRules = {
+    username: { required: true, minLength: 3 },
+    email: { required: true, pattern: emailRegex },
+    currentPassword: { required: true, minLength: 6 },
+    newPassword: { minLength: 6 },
+  };
+
   const handleEditToggle = () => {
     if (isEditing) {
       setFormData({
         username: user?.username || '',
         email: user?.email || '',
+        currentPassword: '',
+        newPassword: '',
       });
+      setErrors({});
     }
     setIsEditing(!isEditing);
   };
 
   const handleSave = async () => {
-    if (!formData.username.trim() || !formData.email.trim()) {
-      toast.error('Please fill in all fields');
+    const validationErrors = validateForm(formData, validationRules, t);
+    setErrors(validationErrors);
+    
+    if (Object.keys(validationErrors).length > 0) {
       return;
     }
 
     try {
       setLoading(true);
       
-      // This would be an endpoint to update user profile
-      // For now, we'll simulate the update
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await apiRequest('/api/auth/edit-profile', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: formData.username,
+          email: formData.email,
+          currentPassword: formData.currentPassword,
+          newPassword: formData.newPassword || undefined,
+        }),
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to update profile');
+      }
       
       toast.success('Profile updated successfully');
       setIsEditing(false);
+      setFormData(prev => ({ ...prev, currentPassword: '', newPassword: '' }));
       await refreshUser();
     } catch (error) {
       console.error('Error updating profile:', error);
-      toast.error('Failed to update profile');
+      toast.error(error instanceof Error ? error.message : 'Failed to update profile');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
+    
+    // Clear error when user starts typing
+    if (errors[e.target.name]) {
+      setErrors(prev => ({ ...prev, [e.target.name]: '' }));
+    }
   };
 
   const getUsagePercentage = (used: number, limit: number) => {
@@ -99,30 +135,30 @@ const Profile: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Profile Settings</h1>
-        <p className="text-gray-600">Manage your account settings and view usage statistics</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white animate-fadeIn">{t('profile')}</h1>
+        <p className="text-gray-600 dark:text-gray-400">Manage your account settings and view usage statistics</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Profile info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Basic info */}
-          <div className="glass rounded-2xl p-6">
+          <div className="glass rounded-2xl p-6 animate-slideUp hover-lift">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Profile Information</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Profile Information</h3>
               <button
                 onClick={isEditing ? handleEditToggle : () => setIsEditing(true)}
-                className="inline-flex items-center space-x-2 text-indigo-600 hover:text-indigo-500 transition-colors"
+                className="inline-flex items-center space-x-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors"
               >
                 {isEditing ? (
                   <>
                     <X className="w-4 h-4" />
-                    <span>Cancel</span>
+                    <span>{t('cancel')}</span>
                   </>
                 ) : (
                   <>
                     <Edit3 className="w-4 h-4" />
-                    <span>Edit</span>
+                    <span>{t('edit')}</span>
                   </>
                 )}
               </button>
@@ -137,52 +173,64 @@ const Profile: React.FC = () => {
                   </span>
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900">{user?.username}</h4>
-                  <p className="text-gray-600">{user?.email}</p>
+                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white">{user?.username}</h4>
+                  <p className="text-gray-600 dark:text-gray-400">{user?.email}</p>
                 </div>
               </div>
 
               {/* Form fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                    Username
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <User className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      id="username"
-                      name="username"
-                      type="text"
-                      value={isEditing ? formData.username : user?.username || ''}
-                      onChange={handleChange}
-                      disabled={!isEditing}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all disabled:bg-gray-50"
-                    />
-                  </div>
-                </div>
+                <FormField
+                  label={t('username')}
+                  name="username"
+                  value={isEditing ? formData.username : user?.username || ''}
+                  onChange={handleChange}
+                  error={errors.username}
+                  icon={<User />}
+                  disabled={!isEditing}
+                  required
+                />
 
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Mail className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      value={isEditing ? formData.email : user?.email || ''}
-                      onChange={handleChange}
-                      disabled={!isEditing}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all disabled:bg-gray-50"
-                    />
-                  </div>
+                <FormField
+                  label={t('email')}
+                  name="email"
+                  type="email"
+                  value={isEditing ? formData.email : user?.email || ''}
+                  onChange={handleChange}
+                  error={errors.email}
+                  icon={<Mail />}
+                  disabled={!isEditing}
+                  required
+                />
+              </div>
+
+              {/* Password fields - only show when editing */}
+              {isEditing && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <FormField
+                    label={t('currentPassword')}
+                    name="currentPassword"
+                    type="password"
+                    value={formData.currentPassword}
+                    onChange={handleChange}
+                    error={errors.currentPassword}
+                    icon={<Lock />}
+                    placeholder="Enter current password"
+                    required
+                  />
+
+                  <FormField
+                    label={t('newPassword')}
+                    name="newPassword"
+                    type="password"
+                    value={formData.newPassword}
+                    onChange={handleChange}
+                    error={errors.newPassword}
+                    icon={<Lock />}
+                    placeholder="Enter new password (optional)"
+                  />
                 </div>
+              )}
               </div>
 
               {/* Save button */}
@@ -191,23 +239,22 @@ const Profile: React.FC = () => {
                   <button
                     onClick={handleSave}
                     disabled={loading}
-                    className="inline-flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                    className="inline-flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none hover-lift"
                   >
                     {loading ? (
                       <LoadingSpinner size="sm" />
                     ) : (
                       <Save className="w-4 h-4" />
                     )}
-                    <span>Save Changes</span>
+                    <span>{t('save')} Changes</span>
                   </button>
                 </div>
               )}
-            </div>
           </div>
 
           {/* Usage statistics */}
-          <div className="glass rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">Usage Statistics</h3>
+          <div className="glass rounded-2xl p-6 animate-slideUp hover-lift">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Usage Statistics</h3>
             
             <div className="space-y-6">
               {/* Messages usage */}
@@ -215,13 +262,13 @@ const Profile: React.FC = () => {
                 <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center space-x-2">
                     <MessageSquare className="w-5 h-5 text-indigo-600" />
-                    <span className="text-sm font-medium text-gray-900">Messages Used</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Messages Used</span>
                   </div>
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
                     {user?.messagesUsed || 0} / {user?.messageLimit === -1 ? '∞' : user?.messageLimit}
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                   <div 
                     className="bg-gradient-to-r from-indigo-500 to-purple-600 h-3 rounded-full transition-all duration-300"
                     style={{ 
@@ -232,20 +279,20 @@ const Profile: React.FC = () => {
                   ></div>
                 </div>
                 {user?.messageLimit !== -1 && (
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {((user?.messageLimit || 1) - (user?.messagesUsed || 0))} messages remaining
                   </p>
                 )}
               </div>
 
               {/* Account info */}
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <div>
                   <div className="flex items-center space-x-2 mb-1">
-                    <Calendar className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-600">Member Since</span>
+                    <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Member Since</span>
                   </div>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
                     {new Date().toLocaleDateString('en-US', { 
                       year: 'numeric', 
                       month: 'long' 
@@ -255,10 +302,10 @@ const Profile: React.FC = () => {
                 
                 <div>
                   <div className="flex items-center space-x-2 mb-1">
-                    <Users className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-600">Max Sessions</span>
+                    <Users className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Max Sessions</span>
                   </div>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
                     {user?.maxSessions === -1 ? 'Unlimited' : user?.maxSessions}
                   </p>
                 </div>
@@ -270,8 +317,8 @@ const Profile: React.FC = () => {
         {/* Plan info */}
         <div className="space-y-6">
           {/* Current plan */}
-          <div className="glass rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Current Plan</h3>
+          <div className="glass rounded-2xl p-6 animate-slideUp hover-lift">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Current Plan</h3>
             
             <div className={`bg-gradient-to-r ${currentPlan.color} rounded-xl p-6 text-white mb-4`}>
               <div className="flex items-center space-x-2 mb-2">
@@ -282,10 +329,10 @@ const Profile: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              <h5 className="font-medium text-gray-900">Plan Features:</h5>
+              <h5 className="font-medium text-gray-900 dark:text-white">Plan Features:</h5>
               <ul className="space-y-2">
                 {currentPlan.features.map((feature, index) => (
-                  <li key={index} className="flex items-center space-x-2 text-sm text-gray-600">
+                  <li key={index} className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
                     <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
                     <span>{feature}</span>
                   </li>
@@ -293,14 +340,14 @@ const Profile: React.FC = () => {
               </ul>
             </div>
 
-            <button className="w-full mt-6 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 px-4 rounded-xl font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200">
+            <button className="w-full mt-6 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 px-4 rounded-xl font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 hover-lift">
               Upgrade Plan
             </button>
           </div>
 
           {/* Quick stats */}
-          <div className="glass rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Stats</h3>
+          <div className="glass rounded-2xl p-6 animate-slideUp hover-lift">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Stats</h3>
             
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl">

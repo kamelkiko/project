@@ -8,9 +8,13 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  X
+  X,
+  Smartphone
 } from 'lucide-react';
 import { useSession } from '../../contexts/SessionContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { validateField } from '../../utils/validation';
+import FormField from '../UI/FormField';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../UI/LoadingSpinner';
 
@@ -25,12 +29,16 @@ const Sessions: React.FC = () => {
     getQRCode,
     refreshSessions 
   } = useSession();
+  const { t } = useLanguage();
   
   const [qrModal, setQrModal] = useState<{ isOpen: boolean; sessionId: string; qrCode: string | null }>({
     isOpen: false,
     sessionId: '',
     qrCode: null,
   });
+  const [createModal, setCreateModal] = useState(false);
+  const [customSessionId, setCustomSessionId] = useState('');
+  const [sessionIdError, setSessionIdError] = useState('');
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -41,19 +49,35 @@ const Sessions: React.FC = () => {
     return () => clearInterval(interval);
   }, [refreshSessions]);
 
-  const handleCreateSession = async () => {
+  const handleCreateSession = async (providedSessionId?: string) => {
     try {
       setLoadingStates(prev => ({ ...prev, create: true }));
-      const sessionId = await createSession();
+      const sessionId = await createSession(providedSessionId);
       
       // Auto-open QR modal after creating session
       setTimeout(() => {
         handleShowQR(sessionId);
       }, 1000);
+      
+      setCreateModal(false);
+      setCustomSessionId('');
     } catch (error) {
       console.error('Error creating session:', error);
     } finally {
       setLoadingStates(prev => ({ ...prev, create: false }));
+    }
+  };
+
+  const handleCreateWithCustomId = () => {
+    if (customSessionId.trim()) {
+      // Basic validation for session ID
+      if (customSessionId.length < 3) {
+        setSessionIdError('Session ID must be at least 3 characters');
+        return;
+      }
+      handleCreateSession(customSessionId.trim());
+    } else {
+      handleCreateSession();
     }
   };
 
@@ -110,6 +134,11 @@ const Sessions: React.FC = () => {
     try {
       setLoadingStates(prev => ({ ...prev, [sessionId]: true }));
       await reconnectSession(sessionId);
+      
+      // Show QR code after reconnect
+      setTimeout(() => {
+        handleShowQR(sessionId);
+      }, 1000);
     } catch (error) {
       console.error('Error reconnecting session:', error);
     } finally {
@@ -161,20 +190,20 @@ const Sessions: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">WhatsApp Sessions</h1>
-          <p className="text-gray-600">Manage your WhatsApp connections</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white animate-fadeIn">{t('sessions')}</h1>
+          <p className="text-gray-600 dark:text-gray-400">Manage your WhatsApp connections</p>
         </div>
         <button
-          onClick={handleCreateSession}
+          onClick={() => setCreateModal(true)}
           disabled={loadingStates.create}
-          className="inline-flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+          className="inline-flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none hover-lift"
         >
           {loadingStates.create ? (
             <LoadingSpinner size="sm" />
           ) : (
             <Plus className="w-5 h-5" />
           )}
-          <span>Create Session</span>
+          <span>{t('createSession')}</span>
         </button>
       </div>
 
@@ -184,36 +213,36 @@ const Sessions: React.FC = () => {
           <LoadingSpinner size="lg" />
         </div>
       ) : sessions.length === 0 ? (
-        <div className="glass rounded-2xl p-12 text-center">
+        <div className="glass rounded-2xl p-12 text-center animate-bounceIn">
           <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <QrCode className="w-8 h-8 text-white" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No Sessions Yet</h3>
-          <p className="text-gray-600 mb-6">Create your first WhatsApp session to get started</p>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Sessions Yet</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">Create your first WhatsApp session to get started</p>
           <button
-            onClick={handleCreateSession}
+            onClick={() => setCreateModal(true)}
             disabled={loadingStates.create}
-            className="inline-flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200"
+            className="inline-flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 hover-lift"
           >
             {loadingStates.create ? (
               <LoadingSpinner size="sm" />
             ) : (
               <Plus className="w-5 h-5" />
             )}
-            <span>Create First Session</span>
+            <span>{t('createSession')}</span>
           </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sessions.map((session) => (
-            <div key={session.sessionId} className="glass rounded-2xl p-6 hover:shadow-lg transition-all duration-300">
+            <div key={session.sessionId} className="glass rounded-2xl p-6 hover:shadow-lg transition-all duration-300 animate-slideUp hover-lift">
               {/* Status badge */}
               <div className="flex items-center justify-between mb-4">
                 <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(session.status)}`}>
                   {getStatusIcon(session.status)}
                   <span className="capitalize">{session.status}</span>
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-gray-500 dark:text-gray-400">
                   {new Date(session.createdAt).toLocaleDateString()}
                 </div>
               </div>
@@ -221,23 +250,23 @@ const Sessions: React.FC = () => {
               {/* Session info */}
               <div className="space-y-3 mb-6">
                 <div>
-                  <p className="text-sm text-gray-600">Phone Number</p>
-                  <p className="font-semibold text-gray-900">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Phone Number</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">
                     {session.phoneNumber || 'Not connected'}
                   </p>
                 </div>
                 
                 <div>
-                  <p className="text-sm text-gray-600">Session ID</p>
-                  <p className="font-mono text-sm text-gray-900">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Session ID</p>
+                  <p className="font-mono text-sm text-gray-900 dark:text-white">
                     {session.sessionId.substring(0, 8)}...
                   </p>
                 </div>
 
                 {session.lastActivity && (
                   <div>
-                    <p className="text-sm text-gray-600">Last Activity</p>
-                    <p className="text-sm text-gray-900">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Last Activity</p>
+                    <p className="text-sm text-gray-900 dark:text-white">
                       {new Date(session.lastActivity).toLocaleString()}
                     </p>
                   </div>
@@ -257,11 +286,11 @@ const Sessions: React.FC = () => {
                     ) : (
                       <QrCode className="w-4 h-4" />
                     )}
-                    <span>Show QR</span>
+                    <span>{t('scanQR')}</span>
                   </button>
                 )}
 
-                {session.status === 'disconnected' && session.phoneNumber && (
+                {(session.status === 'disconnected' || session.status === 'authenticated') && (
                   <button
                     onClick={() => handleReconnectSession(session.sessionId)}
                     disabled={loadingStates[session.sessionId]}
@@ -272,7 +301,7 @@ const Sessions: React.FC = () => {
                     ) : (
                       <RefreshCw className="w-4 h-4" />
                     )}
-                    <span>Reconnect</span>
+                    <span>{t('reconnect')}</span>
                   </button>
                 )}
 
@@ -287,7 +316,7 @@ const Sessions: React.FC = () => {
                     ) : (
                       <LogOut className="w-4 h-4" />
                     )}
-                    <span>Logout</span>
+                    <span>{t('logout')}</span>
                   </button>
                 )}
 
@@ -301,7 +330,7 @@ const Sessions: React.FC = () => {
                   ) : (
                     <Trash2 className="w-4 h-4" />
                   )}
-                  <span>Delete</span>
+                  <span>{t('delete')}</span>
                 </button>
               </div>
             </div>
@@ -309,31 +338,91 @@ const Sessions: React.FC = () => {
         </div>
       )}
 
+      {/* Create Session Modal */}
+      {createModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full scale-in">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{t('createSession')}</h3>
+              <button
+                onClick={() => {
+                  setCreateModal(false);
+                  setCustomSessionId('');
+                  setSessionIdError('');
+                }}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <FormField
+                label="Custom Session ID (Optional)"
+                name="sessionId"
+                value={customSessionId}
+                onChange={(e) => {
+                  setCustomSessionId(e.target.value);
+                  setSessionIdError('');
+                }}
+                error={sessionIdError}
+                icon={<Smartphone />}
+                placeholder="Leave empty for auto-generated ID"
+              />
+              
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                You can provide a custom session ID or leave it empty to auto-generate one.
+              </p>
+              
+              <div className="flex space-x-3 pt-4">
+                <button
+                  onClick={() => {
+                    setCreateModal(false);
+                    setCustomSessionId('');
+                    setSessionIdError('');
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  {t('cancel')}
+                </button>
+                <button
+                  onClick={handleCreateWithCustomId}
+                  disabled={loadingStates.create}
+                  className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+                >
+                  {loadingStates.create ? <LoadingSpinner size="sm" /> : t('create')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* QR Code Modal */}
       {qrModal.isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full scale-in">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full scale-in">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold text-gray-900">Scan QR Code</h3>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{t('scanQR')}</h3>
               <button
                 onClick={() => setQrModal({ isOpen: false, sessionId: '', qrCode: null })}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
               </button>
             </div>
 
             <div className="text-center">
               {qrModal.qrCode ? (
                 <div className="space-y-4">
-                  <div className="bg-white p-4 rounded-xl border border-gray-200 inline-block">
+                  <div className="bg-white p-4 rounded-xl border border-gray-200 dark:border-gray-600 inline-block">
                     <img 
                       src={qrModal.qrCode} 
                       alt="WhatsApp QR Code" 
                       className="w-64 h-64 mx-auto"
                     />
                   </div>
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
                     <p className="mb-2">1. Open WhatsApp on your phone</p>
                     <p className="mb-2">2. Go to Settings → Linked Devices</p>
                     <p>3. Scan this QR code</p>
@@ -342,8 +431,8 @@ const Sessions: React.FC = () => {
               ) : (
                 <div className="py-12">
                   <LoadingSpinner size="lg" />
-                  <p className="text-gray-600 mt-4">Generating QR code...</p>
-                  <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
+                  <p className="text-gray-600 dark:text-gray-400 mt-4">Generating QR code...</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">This may take a few moments</p>
                 </div>
               )}
             </div>
