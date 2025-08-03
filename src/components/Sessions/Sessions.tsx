@@ -17,6 +17,7 @@ import { validateField } from '../../utils/validation';
 import FormField from '../UI/FormField';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../UI/LoadingSpinner';
+import { Copy } from 'lucide-react'; // Add this to your imports
 
 const Sessions: React.FC = () => {
   const { 
@@ -67,6 +68,11 @@ const Sessions: React.FC = () => {
       setLoadingStates(prev => ({ ...prev, create: false }));
     }
   };
+
+  const handleCopySessionId = (sessionId: string) => {
+  navigator.clipboard.writeText(sessionId);
+  toast.success('Session ID copied!');
+};
 
   const handleCreateWithCustomId = () => {
     if (customSessionId.trim()) {
@@ -257,11 +263,20 @@ const Sessions: React.FC = () => {
                 </div>
                 
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Session ID</p>
-                  <p className="font-mono text-sm text-gray-900 dark:text-white">
-                    {session.sessionId.substring(0, 8)}...
-                  </p>
-                </div>
+  <p className="text-sm text-gray-600 dark:text-gray-400">Session ID</p>
+  <div className="flex items-center gap-2">
+    <p className="font-mono text-sm text-gray-900 dark:text-white">
+      {session.sessionId.substring(0, 8)}...
+    </p>
+    <button
+      onClick={() => handleCopySessionId(session.sessionId)}
+      className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+      title="Copy Session ID"
+    >
+      <Copy className="w-4 h-4 text-gray-500 dark:text-gray-300" />
+    </button>
+  </div>
+</div>
 
                 {session.lastActivity && (
                   <div>

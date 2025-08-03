@@ -60,7 +60,7 @@ const Profile: React.FC = () => {
   const validationRules = {
     username: { required: true, minLength: 3 },
     email: { required: true, pattern: emailRegex },
-    currentPassword: { required: true, minLength: 6 },
+    // currentPassword: { required: true, minLength: 6 },
     newPassword: { minLength: 6 },
   };
 
@@ -340,9 +340,9 @@ const Profile: React.FC = () => {
               </ul>
             </div>
 
-            <button className="w-full mt-6 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 px-4 rounded-xl font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 hover-lift">
+            {/* <button className="w-full mt-6 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 px-4 rounded-xl font-semibold hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 hover-lift">
               Upgrade Plan
-            </button>
+            </button> */}
           </div>
 
           {/* Quick stats */}
